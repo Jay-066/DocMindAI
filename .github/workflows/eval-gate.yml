@@ -1,0 +1,81 @@
+name: RAGAS Evaluation Gate
+
+# Runs the RAG pipeline against the eval dataset on every PR to main
+# and fails the build if faithfulness/relevancy/precision/recall drop
+# below the thresholds configured in backend/.env (or repo secrets).
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+  workflow_dispatch: {}
+
+jobs:
+  eval-gate:
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Start ChromaDB
+        run: |
+          docker run -d -p 8000:8000 --name chroma chromadb/chroma:latest
+          echo "Waiting for ChromaDB to be ready..."
+          for i in {1..20}; do
+            curl -sf http://localhost:8000/api/v1/heartbeat && break
+            sleep 3
+          done
+
+      - name: Seed admin user
+        working-directory: backend
+        env:
+          MONGO_URI: mongodb://localhost:27017/docmind_ci
+          JWT_SECRET: ci_test_secret
+        run: node src/scripts/seedAdmin.js ci@docmind.ai ci_password_123 "CI Runner"
+
+      - name: Seed sample collection for evaluation
+        working-directory: backend
+        env:
+          MONGO_URI: mongodb://localhost:27017/docmind_ci
+          CHROMA_URL: http://localhost:8000
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+        run: npm run seed:eval
+
+      - name: Run CI-gated evaluation
+        working-directory: backend
+        env:
+          MONGO_URI: mongodb://localhost:27017/docmind_ci
+          CHROMA_URL: http://localhost:8000
+          JWT_SECRET: ci_test_secret
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          LLM_PROVIDER: anthropic
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          EVAL_JUDGE_PROVIDER: anthropic
+          EVAL_FAITHFULNESS_THRESHOLD: '0.7'
+          EVAL_ANSWER_RELEVANCY_THRESHOLD: '0.7'
+          EVAL_CONTEXT_PRECISION_THRESHOLD: '0.65'
+          EVAL_CONTEXT_RECALL_THRESHOLD: '0.65'
+        run: npm run eval:ci
+
+      - name: Stop ChromaDB
+        if: always()
+        run: docker stop chroma && docker rm chroma

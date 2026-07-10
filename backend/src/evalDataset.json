@@ -1,0 +1,22 @@
+[
+  {
+    "question": "What is this document collection primarily about?",
+    "groundTruth": ""
+  },
+  {
+    "question": "Summarize the key points covered in the uploaded documents.",
+    "groundTruth": ""
+  },
+  {
+    "question": "Are there any specific numbers, dates, or figures mentioned in the documents?",
+    "groundTruth": ""
+  },
+  {
+    "question": "What conclusions or recommendations do the documents make?",
+    "groundTruth": ""
+  },
+  {
+    "question": "Is there any information in the documents about limitations or risks?",
+    "groundTruth": ""
+  }
+]
