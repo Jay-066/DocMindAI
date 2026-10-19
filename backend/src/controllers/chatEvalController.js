@@ -1,4 +1,4 @@
-﻿const ChatEvalLog = require('../models/ChatEvalLog');
+﻿const ChatEvalLog = require('../models/chatEvalLog');
 
 /**
  * GET /api/eval/chat-logs

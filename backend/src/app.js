@@ -16,8 +16,10 @@ const publicRoutes = require('./routes/publicRoutes');
 
 const app = express();
 
+if (config.trustProxy) app.set('trust proxy', config.trustProxy);
+
 app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(cors({ origin: config.frontendUrl, credentials: true }));
+app.use(cors({ origin: config.frontendUrls, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 

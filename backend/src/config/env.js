@@ -7,7 +7,15 @@ function required(name, fallback = undefined) {
 const config = {
   port: parseInt(required('PORT', '5000'), 10),
   nodeEnv: required('NODE_ENV', 'development'),
-  frontendUrl: required('FRONTEND_URL', 'http://localhost:3000'),
+  // Comma-separated list of allowed browser origins, e.g. "https://docmind.vercel.app,http://localhost:3000"
+  frontendUrls: required('FRONTEND_URL', 'http://localhost:3000')
+    .split(',')
+    .map((url) => url.trim().replace(/\/$/, ''))
+    .filter(Boolean),
+
+  // Set to 1 behind a single reverse proxy (Render, Railway, ...) so req.ip and the
+  // rate limiter use the real client address from X-Forwarded-For
+  trustProxy: parseInt(required('TRUST_PROXY', '0'), 10),
 
   mongoUri: required(
     'MONGO_URI',
@@ -20,6 +28,11 @@ const config = {
       'CHROMA_COLLECTION_PREFIX',
       'docmind'
     ),
+    // Chroma Cloud (or any token-protected Chroma): set CHROMA_URL=https://api.trychroma.com
+    // plus the API key, tenant and database from the Chroma Cloud dashboard
+    apiKey: required('CHROMA_API_KEY'),
+    tenant: required('CHROMA_TENANT'),
+    database: required('CHROMA_DATABASE'),
   },
 
   jwt: {

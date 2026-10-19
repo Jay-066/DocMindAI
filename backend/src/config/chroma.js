@@ -5,8 +5,15 @@ let client = null;
 
 function getChromaClient() {
   if (!client) {
-    client = new ChromaClient({ path: config.chroma.url });
-    console.log(`[chroma] client initialized -> ${config.chroma.url}`);
+    const { url, apiKey, tenant, database } = config.chroma;
+    client = new ChromaClient({
+      path: url,
+      // Chroma Cloud authenticates with the API key in the x-chroma-token header
+      ...(apiKey && { auth: { provider: 'token', credentials: apiKey, tokenHeaderType: 'X_CHROMA_TOKEN' } }),
+      ...(tenant && { tenant }),
+      ...(database && { database }),
+    });
+    console.log(`[chroma] client initialized -> ${url}${apiKey ? ' (token auth)' : ''}`);
   }
   return client;
 }
