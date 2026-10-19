@@ -31,6 +31,17 @@ const config = {
       'JWT_EXPIRES_IN',
       '7d'
     ),
+    // Used instead of expiresIn when the user ticks "Remember me"
+    rememberExpiresIn: required(
+      'JWT_REMEMBER_EXPIRES_IN',
+      '30d'
+    ),
+  },
+
+  // OAuth client ID for "Sign in with Google" (Google Cloud Console > Credentials).
+  // Leave unset to hide the Google button.
+  google: {
+    clientId: required('GOOGLE_CLIENT_ID'),
   },
 
   cohere: {
@@ -104,10 +115,6 @@ const config = {
     model: required(
       'OPENAI_MODEL',
       'gpt-4o'
-    ),
-    whisperModel: required(
-      'OPENAI_WHISPER_MODEL',
-      'whisper-1'
     ),
   },
 

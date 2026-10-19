@@ -1,7 +1,7 @@
 const Conversation = require('../models/Conversation');
 const Collection = require('../models/Collection');
 const { hybridRetrieve } = require('../services/retrieval');
-const { streamGeneration } = require('../services/generation');
+const { streamAnswer, fallbackMessage } = require('../services/generation');
 const { extractUsedCitations, hasUncitedClaims } = require('../services/citationEnforce');
 const { evaluateResponse } = require('../services/ragas');
 const { cleanRetrievalQuery } = require('../services/queryCleaner');
@@ -14,7 +14,8 @@ const { cleanRetrievalQuery } = require('../services/queryCleaner');
  * types sent to the client:
  *   "sources"  -> the retrieved+reranked chunks (sent before generation starts)
  *   "token"    -> a text delta to append to the streaming answer
- *   "citations"-> final validated citation list (sent after generation)
+ *   "citations"-> final validated citation list (sent after generation), plus
+ *                 kind: 'answer' | 'off_topic' | 'not_found'
  *   "eval"     -> live RAGAS-style scores for this turn
  *   "done"     -> stream complete
  *   "error"    -> something went wrong
@@ -74,19 +75,30 @@ async function streamChat(req, res) {
       })),
     });
 
-    let fullAnswer = '';
-    await streamGeneration(message, chunks, (delta) => {
-      fullAnswer += delta;
-      sendEvent('token', { delta });
-    });
+    // With no indexed chunks there is nothing to answer from, so skip the model
+    let answer = '';
+    let kind = 'not_found';
+    if (chunks.length > 0) {
+      ({ text: answer, kind } = await streamAnswer(message, chunks, (delta) => {
+        sendEvent('token', { delta });
+      }));
+    }
 
-    const citations = extractUsedCitations(fullAnswer, chunks);
-    const uncited = hasUncitedClaims(fullAnswer, chunks);
-    sendEvent('citations', { citations, warning: uncited ? 'Answer contains uncited claims' : null });
+    // Off-topic or unanswerable: reply politely and point back at this collection's files
+    if (kind !== 'answer') {
+      const docNames = [...new Set(chunks.map((c) => c.documentName))].slice(0, 3);
+      answer = fallbackMessage(kind, { collectionName: collection.name, docNames });
+      sendEvent('token', { delta: answer });
+    }
+
+    const citations = kind === 'answer' ? extractUsedCitations(answer, chunks) : [];
+    const uncited = kind === 'answer' && hasUncitedClaims(answer, chunks);
+    sendEvent('citations', { citations, warning: uncited ? 'Answer contains uncited claims' : null, kind });
 
     const assistantMessage = {
       role: 'assistant',
-      content: fullAnswer,
+      content: answer,
+      kind,
       citations,
       eval: { faithfulness: null, answerRelevancy: null, contextPrecision: null, contextRecall: null },
     };
@@ -96,12 +108,15 @@ async function streamChat(req, res) {
     sendEvent('done', { conversationId: conversation._id.toString() });
     res.end();
 
+    // A polite redirect has no sources to be faithful to, so don't score it
+    if (kind !== 'answer') return;
+
     // Fire live evaluation after the stream closes so it doesn't block
     // the user's perceived response time; results are pushed via the
     // conversation record and picked up by the dashboard/poll.
     evaluateResponse({
       question: message,
-      answer: fullAnswer,
+      answer,
       contexts: chunks.map((c) => c.text),
     })
       .then(async (scores) => {

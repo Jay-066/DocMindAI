@@ -1,13 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { Brain, LayoutDashboard, MessagesSquare, LogOut, ShieldCheck } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Brain, LogIn, LogOut, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/lib/authContext';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { user, logout } = useAuth();
 
   const navItems = [
@@ -20,13 +19,11 @@ export default function Navbar() {
     navItems.push({ href: '/admin', label: 'Admin' });
   }
 
-  function handleAuthClick() {
-    if (user) {
-      logout();
-      router.push('/');
-    } else {
-      router.push('/login');
-    }
+  function handleLogout() {
+    logout();
+    // Full navigation: protected pages redirect to /login as soon as the user is cleared, and a
+    // client-side push('/') would lose that race. A reload also drops any in-memory session data.
+    window.location.assign('/');
   }
 
   return (
@@ -58,24 +55,55 @@ export default function Navbar() {
           })}
         </nav>
 
-        <div className="flex items-center gap-3">
-          {user && (
-            <span className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-ink-faint">
-              {user.role === 'admin' && <ShieldCheck size={13} className="text-eval-precision" />}
-              {user.name}
-            </span>
-          )}
-          <button onClick={handleAuthClick} className="btn-secondary text-sm py-2 px-4">
-            {user ? (
-              <>
-                <LogOut size={15} /> Logout
-              </>
-            ) : (
-              'Login'
-            )}
-          </button>
-        </div>
+        {user ? (
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-2 rounded-full border border-border bg-surface pl-1 pr-3 py-1">
+              <Avatar user={user} />
+              <span className="text-sm text-ink max-w-[10rem] truncate">{user.name}</span>
+              {user.role === 'admin' && (
+                <ShieldCheck size={14} className="text-eval-precision shrink-0" aria-label="Admin" />
+              )}
+            </div>
+            <button onClick={handleLogout} className="btn-secondary text-sm py-2 px-3" aria-label="Log out">
+              <LogOut size={15} />
+              <span className="hidden sm:inline">Log out</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <Link
+              href="/login"
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                pathname === '/login' ? 'text-ink bg-surface2' : 'text-ink-dim hover:text-ink hover:bg-surface2'
+              }`}
+            >
+              <LogIn size={15} /> Log in
+            </Link>
+            <Link href="/register" className="btn-primary text-sm py-2 px-4 shadow-glow">
+              Sign up <ArrowRight size={15} />
+            </Link>
+          </div>
+        )}
       </div>
     </header>
+  );
+}
+
+function Avatar({ user }) {
+  if (user.avatarUrl) {
+    // Google profile photos are served from googleusercontent.com; no-referrer avoids 403s
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={user.avatarUrl} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full object-cover" />;
+  }
+  const initials = user.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('');
+  return (
+    <span className="w-7 h-7 rounded-full bg-accent/20 text-accent text-xs font-semibold flex items-center justify-center">
+      {initials || '?'}
+    </span>
   );
 }

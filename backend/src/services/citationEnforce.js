@@ -25,6 +25,7 @@ function extractUsedCitations(answerText, chunks) {
     .map((idx) => {
       const chunk = chunks[idx - 1];
       return {
+        index: idx, // the [n] marker used in the answer text, so the source list can match it
         chunkId: chunk.chunkId,
         documentName: chunk.documentName,
         sourceLabel: chunk.sourceLabel,

@@ -17,7 +17,7 @@ function cleanRetrievalQuery(message) {
 
   // Strip filename-like tokens: word characters/spaces/hyphens followed
   // by a known document extension (e.g. "Mini_project_document_B-2.pdf")
-  cleaned = cleaned.replace(/[\w\-]+\.(pdf|docx?|pptx?|xlsx?|csv|png|jpe?g|webp|mp3|wav|m4a|mp4|mov|webm)/gi, '');
+  cleaned = cleaned.replace(/[\w\-]+\.(pdf|docx?|txt|md|markdown|csv|tsv|json|xml|ya?ml|log)\b/gi, '');
 
   // Strip common framing phrases that reference "the document/source/file"
   // once the filename itself is gone, so we don't retrieve on "according to"

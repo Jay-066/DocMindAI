@@ -16,12 +16,8 @@ const chunkSchema = new mongoose.Schema(
     chunkIndex: { type: Number, required: true },
 
     // Where this chunk came from, for citation + source highlighting
-    sourceLabel: { type: String, default: '' }, // e.g. "Page 4" or "Slide 2" or "00:03:12"
+    sourceLabel: { type: String, default: '' }, // e.g. "Page 4" or "Document"
     pageNumber: { type: Number, default: null },
-    slideNumber: { type: Number, default: null },
-    sheetName: { type: String, default: null },
-    timestampStart: { type: Number, default: null }, // seconds, for audio/video
-    timestampEnd: { type: Number, default: null },
 
     embedded: { type: Boolean, default: false },
   },

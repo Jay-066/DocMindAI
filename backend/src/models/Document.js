@@ -9,11 +9,12 @@ const documentSchema = new mongoose.Schema(
     storedPath: { type: String, required: true },
     fileType: {
       type: String,
-      enum: ['pdf', 'docx', 'pptx', 'xlsx', 'image', 'audio', 'video'],
+      enum: ['pdf', 'docx', 'text'],
       required: true,
     },
     mimeType: { type: String },
     sizeBytes: { type: Number },
+    contentHash: { type: String, default: null }, // sha256 of the file, for duplicate detection
 
     status: {
       type: String,
@@ -24,7 +25,6 @@ const documentSchema = new mongoose.Schema(
 
     chunkCount: { type: Number, default: 0 },
     pageCount: { type: Number, default: null },
-    durationSeconds: { type: Number, default: null }, // for audio/video
 
     processedAt: { type: Date, default: null },
   },
@@ -32,6 +32,7 @@ const documentSchema = new mongoose.Schema(
 );
 
 documentSchema.index({ owner: 1, collection: 1 });
+documentSchema.index({ collection: 1, contentHash: 1 });
 documentSchema.index({ status: 1 });
 
 module.exports = mongoose.model('Document', documentSchema);

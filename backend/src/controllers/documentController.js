@@ -1,4 +1,5 @@
 const fs = require('fs');
+const crypto = require('crypto');
 const Document = require('../models/Document');
 const Chunk = require('../models/Chunk');
 const Collection = require('../models/Collection');
@@ -6,6 +7,42 @@ const { resolveFileType } = require('../middleware/upload');
 const { ingestDocument } = require('../services/ingestionOrchestrator');
 const { removeDocumentFromBM25Index } = require('../services/bm25');
 const { getOrCreateCollection } = require('../config/chroma');
+
+function hashFile(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    fs.createReadStream(filePath)
+      .on('data', (data) => hash.update(data))
+      .on('end', () => resolve(hash.digest('hex')))
+      .on('error', reject);
+  });
+}
+
+// Documents uploaded before content hashing existed get hashed once, so they are
+// caught as duplicates too. updateOne skips validation of legacy fileType values.
+async function backfillContentHashes(collectionId) {
+  const missing = await Document.find(
+    { collection: collectionId, contentHash: null, status: { $ne: 'failed' } },
+    'storedPath'
+  );
+  for (const doc of missing) {
+    if (!fs.existsSync(doc.storedPath)) continue;
+    await Document.updateOne({ _id: doc._id }, { $set: { contentHash: await hashFile(doc.storedPath) } });
+  }
+}
+
+/**
+ * A file is a duplicate if this collection already has a document (that didn't fail
+ * to index) with the same contents, or with the same name ignoring case.
+ */
+async function findDuplicate(collectionId, originalName, contentHash) {
+  await backfillContentHashes(collectionId);
+  return Document.findOne({
+    collection: collectionId,
+    status: { $ne: 'failed' },
+    $or: [{ contentHash }, { originalName }],
+  }).collation({ locale: 'en', strength: 2 });
+}
 
 async function uploadDocument(req, res) {
   const { collectionId } = req.body;
@@ -28,6 +65,20 @@ async function uploadDocument(req, res) {
     return res.status(400).json({ error: 'Unsupported file type' });
   }
 
+  const contentHash = await hashFile(req.file.path);
+  const duplicate = await findDuplicate(collection._id, req.file.originalname, contentHash);
+  if (duplicate) {
+    fs.unlinkSync(req.file.path);
+    const sameContent = duplicate.contentHash === contentHash;
+    const renamed = duplicate.originalName.toLowerCase() !== req.file.originalname.toLowerCase();
+    return res.status(409).json({
+      error: sameContent
+        ? `This file is already in this collection${renamed ? ` as "${duplicate.originalName}"` : ''}.`
+        : `A file named "${duplicate.originalName}" is already in this collection. Delete it first to upload a new version.`,
+      duplicateOf: duplicate._id,
+    });
+  }
+
   const document = await Document.create({
     owner: req.user._id,
     collection: collection._id,
@@ -36,6 +87,7 @@ async function uploadDocument(req, res) {
     fileType,
     mimeType: req.file.mimetype,
     sizeBytes: req.file.size,
+    contentHash,
     status: 'queued',
   });
 

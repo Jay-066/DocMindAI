@@ -50,11 +50,16 @@ module.exports = {
         flowDash: {
           to: { strokeDashoffset: '-24' },
         },
+        progress: {
+          '0%': { transform: 'scaleX(0)' },
+          '100%': { transform: 'scaleX(1)' },
+        },
       },
       animation: {
         pulseSoft: 'pulseSoft 1.6s ease-in-out infinite',
         slideUp: 'slideUp 0.35s ease-out',
         flowDash: 'flowDash 1.2s linear infinite',
+        progress: 'progress 7s linear forwards',
       },
     },
   },

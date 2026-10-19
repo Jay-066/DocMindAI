@@ -1,15 +1,37 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
+const TOKEN_KEY = 'docmind_token';
+
+// "Remember me" keeps the token in localStorage so it survives closing the browser;
+// otherwise it goes in sessionStorage, which the browser clears when the session ends.
 function getToken() {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('docmind_token');
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
 }
 
-function setToken(token) {
+function setToken(token, remember = true) {
   if (typeof window === 'undefined') return;
-  if (token) localStorage.setItem('docmind_token', token);
-  else localStorage.removeItem('docmind_token');
+  localStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  if (token) (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
 }
+
+/**
+ * Fired when the backend rejects a stored token (expired, user deleted, or
+ * JWT_SECRET changed). AuthProvider listens for it and drops the session,
+ * so protected pages redirect to /login instead of failing on every call.
+ */
+const UNAUTHORIZED_EVENT = 'docmind:unauthorized';
+
+function handleUnauthorized() {
+  setToken(null);
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+}
+
+// fetch() rejects with a bare "Failed to fetch" when the server can't be reached at all
+// (down, restarting, or the connection dropped mid-request); say that in plain words.
+const UNREACHABLE_MESSAGE =
+  "Couldn't reach the DocMind server. Check that the backend is running, then try again.";
 
 async function request(path, { method = 'GET', body, isForm = false } = {}) {
   const headers = {};
@@ -17,15 +39,24 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
   if (!isForm && body) headers['Content-Type'] = 'application/json';
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
+    });
+  } catch {
+    throw new Error(UNREACHABLE_MESSAGE);
+  }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || `Request failed with status ${res.status}`);
+    // /auth/* 401s are wrong-password or the initial session check, handled by their callers
+    if (res.status === 401 && token && !path.startsWith('/auth/')) handleUnauthorized();
+    const err = new Error(data.error || `Request failed with status ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return data;
 }
@@ -34,6 +65,8 @@ export const api = {
   // Auth
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
+  googleLogin: (payload) => request('/auth/google', { method: 'POST', body: payload }),
+  getAuthConfig: () => request('/auth/config'),
   me: () => request('/auth/me'),
 
   // Collections
@@ -98,6 +131,11 @@ export function streamChat({ collectionId, conversationId, message }, handlers) 
         signal: controller.signal,
       });
 
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401 && token) handleUnauthorized();
+        throw new Error(data.error || `Request failed with status ${res.status}`);
+      }
       if (!res.body) throw new Error('No response stream available');
 
       const reader = res.body.getReader();
@@ -131,7 +169,8 @@ export function streamChat({ collectionId, conversationId, message }, handlers) 
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
-        handlers.error?.({ error: err.message });
+        // TypeError = network failure (server unreachable or connection dropped mid-stream)
+        handlers.error?.({ error: err instanceof TypeError ? UNREACHABLE_MESSAGE : err.message });
       }
     }
   })();
@@ -139,4 +178,4 @@ export function streamChat({ collectionId, conversationId, message }, handlers) 
   return () => controller.abort();
 }
 
-export { getToken, setToken, API_BASE };
+export { getToken, setToken, API_BASE, UNAUTHORIZED_EVENT };

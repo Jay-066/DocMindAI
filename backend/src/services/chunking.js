@@ -4,7 +4,7 @@ const config = require('../config/env');
  * Splits text into overlapping chunks by approximate token count
  * (using whitespace-word count as a cheap proxy for tokens).
  * Each returned chunk carries any metadata passed through unchanged,
- * so callers can attach page/slide/timestamp info per source unit.
+ * so callers can attach page info per source unit.
  */
 function chunkText(text, metadata = {}) {
   const { size = config.chunking.size, overlap = config.chunking.overlap } = metadata;

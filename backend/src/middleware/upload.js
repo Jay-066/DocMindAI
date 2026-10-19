@@ -12,20 +12,17 @@ if (!fs.existsSync(uploadDir)) {
 const EXT_TO_TYPE = {
   '.pdf': 'pdf',
   '.docx': 'docx',
-  '.pptx': 'pptx',
-  '.xlsx': 'xlsx',
-  '.xls': 'xlsx',
-  '.csv': 'xlsx',
-  '.png': 'image',
-  '.jpg': 'image',
-  '.jpeg': 'image',
-  '.webp': 'image',
-  '.mp3': 'audio',
-  '.wav': 'audio',
-  '.m4a': 'audio',
-  '.mp4': 'video',
-  '.mov': 'video',
-  '.webm': 'video',
+  // Plain-text formats, read as UTF-8 by textParser
+  '.txt': 'text',
+  '.md': 'text',
+  '.markdown': 'text',
+  '.csv': 'text',
+  '.tsv': 'text',
+  '.json': 'text',
+  '.xml': 'text',
+  '.yaml': 'text',
+  '.yml': 'text',
+  '.log': 'text',
 };
 
 const storage = multer.diskStorage({
@@ -39,7 +36,11 @@ const storage = multer.diskStorage({
 function fileFilter(req, file, cb) {
   const ext = path.extname(file.originalname).toLowerCase();
   if (!EXT_TO_TYPE[ext]) {
-    return cb(new Error(`Unsupported file type: ${ext}`), false);
+    const err = new Error(
+      `Unsupported file type: ${ext || '(none)'}. Allowed: ${Object.keys(EXT_TO_TYPE).join(', ')}`
+    );
+    err.statusCode = 400;
+    return cb(err, false);
   }
   cb(null, true);
 }

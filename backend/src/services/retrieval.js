@@ -127,10 +127,6 @@ async function hybridRetrieve(collectionId, query) {
       sourceLabel: c.sourceLabel,
       documentName: c.document?.originalName || 'Unknown document',
       pageNumber: c.pageNumber,
-      slideNumber: c.slideNumber,
-      sheetName: c.sheetName,
-      timestampStart: c.timestampStart,
-      timestampEnd: c.timestampEnd,
     }));
 
   const reranked = await rerankChunks(query, shortlist, config.retrieval.rerankTopN);

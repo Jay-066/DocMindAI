@@ -3,15 +3,18 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Brain, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { useAuth } from '@/lib/authContext';
+import GoogleSignInButton from '@/components/GoogleSignInButton';
+import { AuthLayout, TextField, PasswordField, RememberMe } from '@/components/AuthFields';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -20,80 +23,79 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      await register(name, email, password);
+      await register(name, email, password, remember);
       router.push('/workspace');
     } catch (err) {
       setError(err.message);
-    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGoogle(credential) {
+    setError('');
+    setLoading(true);
+    try {
+      await loginWithGoogle(credential, remember);
+      router.push('/workspace');
+    } catch (err) {
+      setError(err.message);
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-base flex items-center justify-center px-6">
-      <div className="w-full max-w-sm">
-        <Link href="/" className="flex items-center justify-center gap-2 font-display font-semibold text-xl mb-8">
-          <div className="w-9 h-9 rounded-lg bg-accent/15 flex items-center justify-center">
-            <Brain size={20} className="text-accent" />
-          </div>
-          DocMind AI
-        </Link>
+    <AuthLayout
+      title="Create your account"
+      subtitle="Start indexing and querying your documents"
+      footer={
+        <>
+          Already have an account?{' '}
+          <Link href="/login" className="text-accent hover:text-accent-hover font-medium">
+            Log in
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <TextField
+          id="name"
+          label="Name"
+          name="name"
+          type="text"
+          autoComplete="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Your name"
+        />
+        <TextField
+          id="email"
+          label="Email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+        />
+        <PasswordField
+          id="password"
+          label="Password"
+          autoComplete="new-password"
+          minLength={6}
+          value={password}
+          onChange={setPassword}
+          placeholder="At least 6 characters"
+        />
+        <RememberMe checked={remember} onChange={setRemember} />
 
-        <div className="card p-8">
-          <h1 className="font-display text-2xl font-semibold mb-1">Create your account</h1>
-          <p className="text-ink-dim text-sm mb-6">Start indexing and querying your documents</p>
+        {error && <p className="text-danger text-sm">{error}</p>}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-sm text-ink-dim mb-1.5 block">Name</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="input-field"
-                placeholder="Jay"
-              />
-            </div>
-            <div>
-              <label className="text-sm text-ink-dim mb-1.5 block">Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input-field"
-                placeholder="you@example.com"
-              />
-            </div>
-            <div>
-              <label className="text-sm text-ink-dim mb-1.5 block">Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-field"
-                placeholder="At least 6 characters"
-              />
-            </div>
+        <button type="submit" disabled={loading} className="btn-primary w-full">
+          <UserPlus size={16} /> {loading ? 'Creating account...' : 'Create account'}
+        </button>
+      </form>
 
-            {error && <p className="text-danger text-sm">{error}</p>}
-
-            <button type="submit" disabled={loading} className="btn-primary w-full">
-              <UserPlus size={16} /> {loading ? 'Creating account...' : 'Sign Up'}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-ink-dim mt-6">
-            Already have an account?{' '}
-            <Link href="/login" className="text-accent hover:text-accent-hover">
-              Log in
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
+      <GoogleSignInButton text="signup_with" onCredential={handleGoogle} onError={setError} />
+    </AuthLayout>
   );
 }

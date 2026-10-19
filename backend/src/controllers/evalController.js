@@ -20,7 +20,9 @@ async function listEvalRuns(req, res) {
   const runs = await EvalRun.find()
     .sort({ createdAt: -1 })
     .limit(20)
-    .select('-caseResults'); // omit heavy per-case detail in the list view
+    // keep per-case questions + scores; answers and contexts come from GET /runs/:id
+    .select('-caseResults.answer -caseResults.contexts -caseResults.groundTruth')
+    .populate('collection', 'name');
   res.json({ runs });
 }
 
@@ -29,7 +31,7 @@ async function listEvalRuns(req, res) {
  * Full detail for a single run, including per-case scores.
  */
 async function getEvalRun(req, res) {
-  const run = await EvalRun.findById(req.params.id);
+  const run = await EvalRun.findById(req.params.id).populate('collection', 'name');
   if (!run) {
     return res.status(404).json({ error: 'Eval run not found' });
   }
@@ -42,7 +44,10 @@ async function getEvalRun(req, res) {
  * used to populate the real-time stats panel on load.
  */
 async function getLatestEvalRun(req, res) {
-  const run = await EvalRun.findOne().sort({ createdAt: -1 }).select('-caseResults');
+  const run = await EvalRun.findOne()
+    .sort({ createdAt: -1 })
+    .select('-caseResults')
+    .populate('collection', 'name');
   res.json({ run: run || null });
 }
 

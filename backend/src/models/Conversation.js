@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const citationSchema = new mongoose.Schema(
   {
+    index: { type: Number }, // the [n] marker in the answer text
     chunkId: { type: mongoose.Schema.Types.ObjectId, ref: 'Chunk' },
     documentName: { type: String },
     sourceLabel: { type: String },
@@ -15,6 +16,8 @@ const messageSchema = new mongoose.Schema(
   {
     role: { type: String, enum: ['user', 'assistant'], required: true },
     content: { type: String, required: true },
+    // assistant only: a real answer, or a polite redirect for off-topic / unanswerable questions
+    kind: { type: String, enum: ['answer', 'off_topic', 'not_found'], default: 'answer' },
     citations: { type: [citationSchema], default: [] },
     eval: {
       faithfulness: { type: Number, default: null },

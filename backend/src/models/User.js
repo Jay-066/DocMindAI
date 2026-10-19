@@ -5,7 +5,17 @@ const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    password: { type: String, required: true, minlength: 6, select: false },
+    // Accounts created with Google sign-in have no password
+    password: {
+      type: String,
+      minlength: 6,
+      select: false,
+      required() {
+        return !this.googleId;
+      },
+    },
+    googleId: { type: String, default: null, index: true },
+    avatarUrl: { type: String, default: null },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
   },
   { timestamps: true }
@@ -19,6 +29,7 @@ userSchema.pre('save', async function hashPassword(next) {
 });
 
 userSchema.methods.comparePassword = function comparePassword(candidate) {
+  if (!this.password) return Promise.resolve(false);
   return bcrypt.compare(candidate, this.password);
 };
 
@@ -28,6 +39,7 @@ userSchema.methods.toSafeJSON = function toSafeJSON() {
     name: this.name,
     email: this.email,
     role: this.role,
+    avatarUrl: this.avatarUrl,
     createdAt: this.createdAt,
   };
 };

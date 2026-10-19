@@ -21,13 +21,13 @@ const { uploadDir } = require('../middleware/upload');
 const SAMPLE_TEXT = `DocMind AI Sample Document
 
 This is a sample document seeded for CI evaluation purposes.
-DocMind AI is a production-grade multimodal retrieval-augmented generation system.
+DocMind AI is a production-grade retrieval-augmented generation system for documents.
 It supports hybrid retrieval combining BM25 sparse search with dense vector search from ChromaDB, fused using Reciprocal Rank Fusion.
 Retrieved chunks are reranked using Cohere's cross-encoder reranking model before being passed to the language model.
 The system enforces citations: every claim in a generated answer must reference a numbered source.
 Answer quality is evaluated automatically using four metrics: faithfulness, answer relevancy, context precision, and context recall.
 A CI pipeline gates merges on these evaluation scores staying above configured thresholds.
-Supported document types include PDF, DOCX, PPTX, XLSX, images via OCR, and audio or video via transcription.
+Supported document types include PDF, DOCX, and plain-text files such as TXT, Markdown, CSV, and JSON.
 Known limitations include reliance on third-party APIs for embeddings, reranking, and generation, and the eval dataset currently being generic rather than domain-specific.
 `;
 
@@ -52,13 +52,9 @@ async function main() {
   const sampleFilePath = path.join(uploadDir, 'ci_sample_document.txt');
   fs.writeFileSync(sampleFilePath, SAMPLE_TEXT);
 
-  // Reuse the DOCX-style plain-text path by writing directly as a
-  // "document" record; since our parsers expect real file formats,
-  // we bypass parsing here and insert pre-chunked content directly
-  // via the ingestion orchestrator's underlying pieces would require
-  // a real pptx/docx/pdf. Simplest robust approach for CI: write a
-  // minimal one-page PDF-free path using the docx parser's chunker
-  // directly on this plain text.
+  // Index the sample text directly with the ingestion pipeline's
+  // building blocks (chunk -> embed -> Chroma + BM25) so CI doesn't
+  // depend on the async upload queue.
   const { chunkUnits } = require('../services/chunking');
   const { embedDocuments } = require('../services/embeddings');
   const { getOrCreateCollection } = require('../config/chroma');
@@ -77,7 +73,7 @@ async function main() {
     collection: collection._id,
     originalName: 'ci_sample_document.txt',
     storedPath: sampleFilePath,
-    fileType: 'docx', // treated as generic text for chunking purposes
+    fileType: 'text',
     mimeType: 'text/plain',
     sizeBytes: Buffer.byteLength(SAMPLE_TEXT),
     status: 'processing',

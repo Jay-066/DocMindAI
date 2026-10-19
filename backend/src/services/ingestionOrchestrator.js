@@ -7,20 +7,12 @@ const { addChunkToBM25Index } = require('./bm25');
 
 const { parsePDF } = require('./ingestion/pdfParser');
 const { parseDOCX } = require('./ingestion/docxParser');
-const { parsePPTX } = require('./ingestion/pptxParser');
-const { parseXLSX } = require('./ingestion/xlsxParser');
-const { parseImage } = require('./ingestion/imageParser');
-const { parseAudio } = require('./ingestion/audioParser');
-const { parseVideo } = require('./ingestion/videoParser');
+const { parseText } = require('./ingestion/textParser');
 
 const PARSERS = {
   pdf: parsePDF,
   docx: parseDOCX,
-  pptx: parsePPTX,
-  xlsx: parseXLSX,
-  image: parseImage,
-  audio: parseAudio,
-  video: parseVideo,
+  text: parseText,
 };
 
 /**
@@ -42,7 +34,7 @@ async function ingestDocument(documentId) {
     const parser = PARSERS[document.fileType];
     if (!parser) throw new Error(`No parser registered for file type: ${document.fileType}`);
 
-    const { units, pageCount, durationSeconds } = await parser(document.storedPath);
+    const { units, pageCount } = await parser(document.storedPath);
 
     if (!units || units.length === 0) {
       throw new Error('No extractable text found in this file');
@@ -65,10 +57,6 @@ async function ingestDocument(documentId) {
         chunkIndex: c.chunkIndex,
         sourceLabel: c.sourceLabel || '',
         pageNumber: c.pageNumber ?? null,
-        slideNumber: c.slideNumber ?? null,
-        sheetName: c.sheetName ?? null,
-        timestampStart: c.timestampStart ?? null,
-        timestampEnd: c.timestampEnd ?? null,
         embedded: true,
       }))
     );
@@ -94,7 +82,6 @@ async function ingestDocument(documentId) {
     document.status = 'indexed';
     document.chunkCount = chunkDocs.length;
     document.pageCount = pageCount ?? null;
-    document.durationSeconds = durationSeconds ?? null;
     document.processedAt = new Date();
     document.errorMessage = null;
     await document.save();
